@@ -16,6 +16,7 @@
  * Projects with no `rows` show placeholder tiles until images are added.
  */
 const SOF = 'assets/img/space-of-freedom/';
+const SF = 'assets/img/space-fictions/';
 
 window.PROJECTS = [
   {
@@ -60,7 +61,43 @@ window.PROJECTS = [
       }
     ]
   },
-  { slug: 'space-fictions', title: 'Space Fictions', year: '2025', categories: ['Editorial'] },
+  {
+    slug: 'space-fictions',
+    title: 'Space Fictions',
+    year: '2025',
+    categories: ['Editorial'],
+    rows: [
+      { layout: 'full', items: [{ src: SF + 'covers-thx.jpg', ratio: 3, alt: 'THX 1138 cover and fold-out', crop: { w: 100, h: 300, l: 0, t: -44.8 } }] },
+      {
+        layout: 'cols',
+        items: [
+          { src: SF + 'covers-detail.jpg', ratio: 1440 / 1794, alt: 'Booklet covers' },
+          { src: SF + 'spines.jpg', ratio: 1080 / 1346, alt: 'Booklet spines' }
+        ]
+      },
+      {
+        layout: 'cols',
+        items: [
+          { src: SF + 'covers-cq-solaris.jpg', ratio: 1, alt: 'CQ and Solaris covers and fold-outs' },
+          { src: SF + 'covers-caligari-malkovich.jpg', ratio: 1, alt: 'Das Cabinet des Dr. Caligari and Being John Malkovich covers and fold-outs' }
+        ]
+      },
+      {
+        layout: 'cols',
+        items: [
+          { src: SF + 'project-spread.jpg', ratio: 1, alt: 'Project drawings spread' },
+          { src: SF + 'thx-foldout.jpg', ratio: 1, alt: 'THX 1138 fold-out' }
+        ]
+      },
+      {
+        layout: 'cols',
+        items: [
+          { src: SF + 'spreads-cq.jpg', ratio: 1, alt: 'CQ booklet spreads' },
+          { src: SF + 'spreads-caligari.jpg', ratio: 1, alt: 'Das Cabinet des Dr. Caligari booklet spreads' }
+        ]
+      }
+    ]
+  },
   { slug: 'malibu-ski-league', title: 'Malibu Ski League', year: '2024', categories: ['Branding', 'merchandising'] },
   { slug: 'solvitur-ambulando', title: 'Solvitur Ambulando', year: '2022', categories: ['Editorial'] },
   { slug: 'art-in-the-public-space', title: 'Art in the public space', year: '2023', categories: ['Editorial', 'Experiential Design', 'Social Media'] },
