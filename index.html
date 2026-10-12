@@ -9,6 +9,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Hide text until the load-in animation is ready; never longer than 3s.
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.documentElement.classList.add('reveal-init');
+      setTimeout(() => document.documentElement.classList.remove('reveal-init'), 3000);
+    }
+  </script>
 </head>
 <body>
   <header class="topbar grid">

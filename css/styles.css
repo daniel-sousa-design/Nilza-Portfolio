@@ -15,9 +15,12 @@
   --ink: #000;
   --paper: #fff;
   --accent: rgba(191, 0, 255, 0.5);
+  --accent-solid: #df80ff;           /* the accent as it looks on white, for use over images */
   --tile: #f2f2f2;
   --faded: 0.2;
 
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --cap: 0.3em;                      /* line top → top of capitals */
   --mono: 'Roboto Mono', ui-monospace, monospace;
   --mono-footer: 'IBM Plex Mono', ui-monospace, monospace;
   --nav-h: 0px;                      /* set from JS */
@@ -130,9 +133,7 @@ button {
  */
 .projects-nav {
   --lh: calc(var(--line) * 1em);
-  --cap: 0.3em;                       /* line top → top of capitals */
   --window-h: calc(3 * var(--lh));
-  --ease: cubic-bezier(0.65, 0, 0.35, 1);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -175,27 +176,19 @@ button {
 
 .projects-nav__row {
   width: 100%;
-  transition: opacity 0.45s ease, transform 0.45s var(--ease);
-  transition-delay: calc(var(--ri, 0) * 25ms);   /* closing: bottom row leaves first */
+  transition: opacity 0.45s ease;
+  --row-d: calc(var(--ri, 0) * 30ms);              /* closing: bottom row leaves first */
 }
-/* closed: everything past the next project is out of sight */
-.projects-nav__row:not(.is-active):not(.is-next) {
-  opacity: 0;
-  transform: translateY(-0.6em);
-}
+/* closed: everything past the next project is slid up out of its line */
+.projects-nav__row:not(.is-active):not(.is-next) .reveal__in { transform: translateY(-110%); }
 
 .projects-nav.is-open .projects-nav__window { height: calc(var(--rows-h, var(--window-h)) + var(--edge)); }
 .projects-nav.is-open .projects-nav__list { transform: none; }
 .projects-nav.is-open .projects-nav__fade { opacity: 0; }
-.projects-nav.is-open .projects-nav__row:not(.is-active) {
-  opacity: var(--faded);
-  transform: none;
-  transition-delay: calc(var(--i, 0) * 40ms);    /* opening: rows cascade top to bottom */
-}
-.projects-nav.is-open .projects-nav__row:not(.is-active):hover {
-  opacity: 0.6;
-  transition-delay: 0s;
-}
+.projects-nav.is-open .projects-nav__row { --row-d: calc(var(--i, 0) * 45ms); }  /* opening: top to bottom */
+.projects-nav.is-open .projects-nav__row .reveal__in { transform: none; }
+.projects-nav.is-open .projects-nav__row:not(.is-active) { opacity: var(--faded); }
+.projects-nav.is-open .projects-nav__row:not(.is-active):hover { opacity: 0.6; }
 
 /* subtitle folds away when its project isn't selected */
 .projects-nav__sub {
@@ -207,6 +200,25 @@ button {
 .projects-nav__sub > span { overflow: hidden; }
 .is-active .projects-nav__sub { grid-template-rows: 1fr; }
 .col-project { display: block; }
+
+/* ---------- Line reveal ----------
+ * Text slides down into place from above, cut at the cap line of its own line.
+ * Used for the page-load intro (all text) and the nav list opening/closing.
+ */
+.reveal {
+  display: block;
+  clip-path: inset(var(--cap) -1em -0.5em -1em);
+}
+.reveal__in {
+  display: block;
+  transition: transform 0.9s var(--ease);
+  transition-delay: var(--d, var(--row-d, 0s));
+}
+/* hidden until the intro has split the text into lines (no flash of static text) */
+.reveal-init .topbar,
+.reveal-init .info,
+.reveal-init .projects-nav { visibility: hidden; }
+.reveal-start .reveal__in { transform: translateY(-110%) !important; transition: none !important; }
 
 /* ---------- Back to top ---------- */
 .back-to-top {
@@ -225,6 +237,10 @@ button {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+.back-to-top:hover {
+  color: var(--accent-solid);
+  mix-blend-mode: normal;
 }
 
 /* ---------- Projects ---------- */

@@ -16,6 +16,10 @@
   const navRows = [];
   let active = -1;
 
+  // One line of text that can slide in/out, clipped at its cap line (see .reveal in CSS).
+  const reveal = (html, cls = '') =>
+    `<span class="reveal ${cls}"><span class="reveal__in">${html}</span></span>`;
+
   /* ---------- Nav ---------- */
 
   projects.forEach((p, i) => {
@@ -26,9 +30,9 @@
     btn.style.setProperty('--i', i);                        // stagger order when opening
     btn.style.setProperty('--ri', projects.length - 1 - i); // reversed when closing
     btn.innerHTML = `
-      <span class="col-project"><span class="projects-nav__title">${p.title}</span>${p.subtitle ? `<span class="projects-nav__sub"><span>${p.subtitle}</span></span>` : ''}</span>
-      <span class="col-year">[${p.year}]</span>
-      <span class="col-category">${p.categories.map(c => `[${c}]`).join('')}</span>`;
+      <span class="col-project">${reveal(p.title, 'projects-nav__title')}${p.subtitle ? `<span class="projects-nav__sub"><span>${reveal(p.subtitle)}</span></span>` : ''}</span>
+      <span class="col-year">${reveal(`[${p.year}]`)}</span>
+      <span class="col-category">${reveal(p.categories.map(c => `[${c}]`).join(''))}</span>`;
     btn.addEventListener('click', () => goTo(i));
     li.appendChild(btn);
     navList.appendChild(li);
@@ -235,6 +239,68 @@
     info.classList.toggle('is-collapsed', open);
   });
 
+  /* ---------- Load-in animation ----------
+   * Every line of text slides down into place, in a wave from top to bottom. Paragraphs
+   * are split into their rendered lines first; afterwards the original markup is put
+   * back so text reflows normally on resize.
+   */
+
+  const escapeHTML = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+  function splitIntoLines(el) {
+    el.innerHTML = el.textContent.trim().split(/\s+/)
+      .map(w => `<span class="w">${escapeHTML(w)}</span>`).join(' ');
+    const lines = [];
+    let top = null;
+    el.querySelectorAll('.w').forEach(w => {
+      if (w.offsetTop !== top) { lines.push([]); top = w.offsetTop; }
+      lines[lines.length - 1].push(w.textContent);
+    });
+    el.innerHTML = lines.map(l => reveal(escapeHTML(l.join(' ')))).join('');
+  }
+
+  async function intro() {
+    const root = document.documentElement;
+    if (!root.classList.contains('reveal-init')) return;
+
+    await Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, 1500))]);
+
+    const blocks = [...document.querySelectorAll(
+      '.topbar > *, .info .label, .info p, .info li, .projects-nav__head > *'
+    )].map(el => ({ el, html: el.innerHTML, text: el.textContent }));
+
+    blocks.forEach(({ el }) => {
+      if (el.children.length === 0) {  // plain text: animate each rendered line
+        splitIntoLines(el);
+      } else {
+        el.innerHTML = reveal(el.innerHTML);
+      }
+    });
+
+    // Delay each line by its position on screen: top-to-bottom wave, slight left-to-right lean.
+    const lines = document.querySelectorAll('.topbar .reveal__in, .info .reveal__in, .projects-nav .reveal__in');
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    lines.forEach(line => {
+      const r = line.getBoundingClientRect();
+      const d = Math.min(Math.max(r.top, 0), vh) / vh * 700 + r.left / vw * 150;
+      line.style.setProperty('--d', `${Math.round(d)}ms`);
+    });
+
+    root.classList.add('reveal-start');
+    root.classList.remove('reveal-init');
+    root.offsetHeight; // commit the start position before animating
+    requestAnimationFrame(() => root.classList.remove('reveal-start'));
+
+    setTimeout(() => {
+      lines.forEach(line => line.style.removeProperty('--d'));
+      // Restore original markup unless a control changed its text meanwhile (e.g. [+] → [-]).
+      blocks.forEach(({ el, html, text }) => {
+        if (el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, '')) el.innerHTML = html;
+      });
+    }, 2000);
+  }
+
   /* ---------- Init ---------- */
 
   const fromHash = projects.findIndex(p => `#${p.slug}` === location.hash);
@@ -245,4 +311,5 @@
   }
   setActive(Math.max(fromHash, 0));
   document.fonts?.ready.then(layoutNav);
+  intro();
 })();
