@@ -20,6 +20,7 @@
   --faded: 0.2;
 
   --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-ui: cubic-bezier(0.05, 0, 0.35, 1);  /* menus: starts at once, settles gently */
   --cap: 0.3em;                      /* line top → top of capitals */
   --clip: calc(var(--cap) - 0.11em); /* cut line for reveals: just above capitals, clearing [ ] ( ) */
   --mono: 'Roboto Mono', ui-monospace, monospace;
@@ -72,6 +73,19 @@ button {
 .topbar__role { grid-column: 4 / 8; }
 .topbar__toggle { grid-column: 8; justify-self: end; }
 .topbar__toggle:hover { color: var(--accent); }
+
+/* After the intro, the info panel and the project nav (opening, closing, switching) move
+ * faster, on the quicker-starting UI curve; the intro itself keeps its slower pace. */
+.intro-done .info,
+.intro-done .projects-nav { --ease: var(--ease-ui); }
+.intro-done .info .reveal__in,
+.intro-done .projects-nav .reveal__in { transition-duration: 0.55s; }  /* = LINE_MS in main.js */
+.intro-done .projects-nav__frame,
+.intro-done .projects-nav__window { transition-duration: 0.45s; }
+.intro-done .projects-nav__list,
+.intro-done .projects-nav__sub { transition-duration: 0.5s; }
+.intro-done .projects-nav__fade { transition-duration: 0.5s, 0.3s; }
+.intro-done .projects-nav__row { transition-duration: 0.3s; }
 
 /* ---------- Info ---------- */
 .info {
@@ -240,7 +254,7 @@ button {
  * up from below, and out upwards once the project is passed */
 .projects-nav__sub .reveal__in {
   transform: translateY(110%);
-  transition-delay: var(--d, calc(150ms + var(--n, 0) * 120ms));
+  transition-delay: var(--d, calc(80ms + var(--n, 0) * 80ms));
 }
 .is-past .projects-nav__sub .reveal__in { transform: translateY(-110%); }
 .is-active .projects-nav__sub .reveal__in { transform: none; }

@@ -17,7 +17,7 @@
   let active = -1;
   let travelling = null;  // index of the project a nav click / back-to-top is scrolling to
 
-  // Reloads land where the URL says (a project's #hash, or the top), not at a stale offset.
+  // Reloads start at the top, not at a stale offset (see Init).
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
   // One line of text that can slide in/out, clipped at its cap line (see .reveal in CSS).
@@ -274,8 +274,9 @@
   // up out of view (bottom first) while the panel folds; opening unfolds it while the lines
   // slide down into place (top first). The fold is timed to the wave, so the divider below
   // travels with the text.
-  const LINE_MS = 900;  // .reveal__in transition
-  const WAVE_MS = 500;
+  const LINE_MS = 550;  // .reveal__in transition after the intro (css: .intro-done .info .reveal__in)
+  const WAVE_MS = 300;
+  const LEAN_MS = 100;  // slight left-to-right lean across the wave
   let infoBlocks = null;
   let infoRun = 0;
 
@@ -302,7 +303,7 @@
       const r = line.getBoundingClientRect();
       const y = (r.top - box.top) / height;
       const x = r.left / vw;
-      const d = reverse ? (1 - y) * WAVE_MS + (1 - x) * 150 : y * WAVE_MS + x * 150;
+      const d = reverse ? (1 - y) * WAVE_MS + (1 - x) * LEAN_MS : y * WAVE_MS + x * LEAN_MS;
       line.style.setProperty('--d', `${Math.round(d)}ms`);
     });
   }
@@ -318,7 +319,7 @@
       return;
     }
 
-    const total = WAVE_MS + 150 + LINE_MS;  // first line starts → last line lands
+    const total = WAVE_MS + LEAN_MS + LINE_MS;  // first line starts → last line lands
     splitInfo();
     info.classList.add('is-folding');
     if (open) {
@@ -330,8 +331,8 @@
         if (run === infoRun) restoreInfo();  // once folded away
       }, total + 100);
     } else {
-      info.style.setProperty('--fold-ms', `${total - 250}ms`);
-      info.style.setProperty('--fold-delay', '150ms');
+      info.style.setProperty('--fold-ms', `${total - 150}ms`);
+      info.style.setProperty('--fold-delay', '80ms');
       info.classList.add('is-hiding');
       info.querySelectorAll('.reveal__in').forEach(l => { l.style.transition = 'none'; });
       info.offsetHeight;  // lines start above their cut line
@@ -367,7 +368,10 @@
 
   async function intro() {
     const root = document.documentElement;
-    if (!root.classList.contains('reveal-init')) return;
+    if (!root.classList.contains('reveal-init')) {
+      root.classList.add('intro-done');
+      return;
+    }
 
     await Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, 1500))]);
 
@@ -438,11 +442,15 @@
       blocks.forEach(({ el, html, text }) => {
         if (el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, '')) el.innerHTML = html;
       });
+      root.classList.add('intro-done');
     }, SPECTRUM_MS + 2000);
   }
 
   /* ---------- Init ---------- */
 
+  // A reload always starts from the top; only a fresh visit to a #project link jumps there.
+  const isReload = performance.getEntriesByType('navigation')[0]?.type === 'reload';
+  if (isReload && location.hash) history.replaceState(null, '', location.pathname + location.search);
   const fromHash = indexFromHash();
   loadNext();
   if (fromHash >= 0) {
