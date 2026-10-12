@@ -13,6 +13,9 @@
  *   bg     background behind a contained image
  *   crop   { w, h, l, t } in % — exact Figma crop of the image inside its box
  *
+ * `subtitle` shows under the title in the nav while the project is active; pass an array
+ * for several lines.
+ *
  * Projects with no `rows` show placeholder tiles until images are added.
  */
 const SOF = 'assets/img/space-of-freedom/';
@@ -64,6 +67,7 @@ window.PROJECTS = [
   {
     slug: 'space-fictions',
     title: 'Space Fictions',
+    subtitle: ['With Ana Resende Studio', '[Award] AIGA’s 50 Books | 50 Covers'],
     year: '2025',
     categories: ['Editorial'],
     rows: [

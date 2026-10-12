@@ -21,8 +21,8 @@
 
   --ease: cubic-bezier(0.65, 0, 0.35, 1);
   --cap: 0.3em;                      /* line top → top of capitals */
+  --clip: calc(var(--cap) - 0.11em); /* cut line for reveals: just above capitals, clearing [ ] ( ) */
   --mono: 'Roboto Mono', ui-monospace, monospace;
-  --mono-footer: 'IBM Plex Mono', ui-monospace, monospace;
   --nav-h: 0px;                      /* set from JS */
 }
 
@@ -77,10 +77,14 @@ button {
 .info {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 0.5s ease;
+  /* timing set per direction by main.js so the divider below moves with the text */
+  transition: grid-template-rows var(--fold-ms, 500ms) var(--ease) var(--fold-delay, 0ms);
 }
 .info.is-collapsed { grid-template-rows: 0fr; }
+.info.is-hiding .reveal__in { transform: translateY(-110%); }  /* [-]/[+]: lines out above their cut line */
 .info__inner { overflow: hidden; min-height: 0; }
+/* while folding, lines hide behind their own cut line instead of being wiped by the fold edge */
+.info.is-folding .info__inner { overflow: visible; }
 
 .info__row { padding-top: calc(60 * var(--u)); }
 .info__about { grid-column: 1 / 4; }
@@ -119,14 +123,40 @@ button {
   opacity: 0.85;
   animation: spectrum-flow 24s linear infinite;
   pointer-events: none;
+  clip-path: inset(0 0);
+  transition: clip-path 1.2s cubic-bezier(0.87, 0, 0.13, 1), transform 0.9s var(--ease);  /* opening: very slow start */
 }
+/* page-load intro, before anything else: the wash opens out from the centre to both sides
+ * in the middle of the window, then glides down into its place (--y is set by main.js) */
+.intro-centre .spectrum { transform: translateY(var(--y, 0)); }
+.reveal-init .spectrum,
+.reveal-start .spectrum { clip-path: inset(0 50%); transition: none; }
+/* loading count shown while the divider opens, just above it: starts centred and rides the
+ * divider's right end out to the page edge (--x is set by main.js). When the divider moves
+ * down, the count slides down out of its line (top to bottom). */
+.loader {
+  position: fixed;
+  right: var(--edge);
+  top: calc(50% - 22 * var(--u) - 8 * var(--u));
+  transform: translate(var(--x, 0px), -100%);
+  color: var(--accent);
+  z-index: 30;
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s 0.9s;     /* stays visible while it slides out */
+}
+.loader .reveal { clip-path: inset(var(--clip) -1em 0 -1em); }  /* cut at its baseline too */
+.loader .reveal__in { transform: translateY(110%); transition: transform 0.9s var(--ease); }
+.intro-wait .loader { visibility: visible; transition: none; }
+.intro-wait .loader .reveal__in { transform: none; transition: none; }
 @keyframes spectrum-flow {
   to { background-position: 100vw 0; }
 }
 
 /* ---------- Project nav (sticky) ----------
  * Closed: a window of ~3 lines showing the active project (plus its subtitle) and the
- * next one, half hidden under a white fade. Switching project slides the list up,
+ * next one, faded back like the inactive rows of the open list and half hidden under a
+ * white fade. Switching project slides the list up,
  * clipped at the cap line of the text.
  * Open ([+]): the window drops down to the full list and the other projects cascade in;
  * closing (or leaving the nav) plays it in reverse.
@@ -137,7 +167,7 @@ button {
   position: sticky;
   top: 0;
   z-index: 10;
-  padding-block: var(--edge) calc(14 * var(--u));
+  padding-block: var(--edge) calc(7 * var(--u));
   background: var(--paper);
 }
 
@@ -148,14 +178,14 @@ button {
 .projects-nav__toggle { grid-column: 8; justify-self: end; }
 .projects-nav__toggle:hover { color: var(--accent); }
 
-.projects-nav__frame { position: relative; height: var(--window-h); }
+.projects-nav__frame { position: relative; height: var(--window-h); transition: height 0.7s var(--ease); }
 
 .projects-nav__window {
   position: absolute;
   inset: 0 0 auto;
   height: var(--window-h);
   overflow: hidden;
-  clip-path: inset(var(--cap) 0 0 0);
+  clip-path: inset(var(--clip) 0 0 0);
   background: var(--paper);
   transition: height 0.7s var(--ease);
 }
@@ -168,7 +198,7 @@ button {
 .projects-nav__fade {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  top: var(--active-h, var(--lh));
+  top: calc(var(--active-h, var(--lh)) + 0.5 * var(--lh));   /* top half of the next project stays clear */
   background: linear-gradient(rgba(255, 255, 255, 0.15), var(--paper) var(--lh));
   pointer-events: none;
   transition: top 0.8s var(--ease), opacity 0.4s ease;
@@ -179,8 +209,15 @@ button {
   transition: opacity 0.45s ease;
   --row-d: calc(var(--ri, 0) * 30ms);              /* closing: bottom row leaves first */
 }
-/* closed: everything past the next project is slid up out of its line */
-.projects-nav__row:not(.is-active):not(.is-next) .reveal__in { transform: translateY(-110%); }
+/* closed: the next project is faded. Projects already passed have slid up out of their
+ * line; the ones still to come wait below theirs, so they rise into place (bottom up) */
+.projects-nav__row.is-next { opacity: var(--faded); }
+/* closed: only the active project responds; the rest are clickable once the list is open */
+.projects-nav:not(.is-open) .projects-nav__row:not(.is-active) { pointer-events: none; }
+.projects-nav__row:not(.is-active):not(.is-next) .reveal__in { transform: translateY(110%); }
+.projects-nav__row.is-past:not(.is-active) .reveal__in { transform: translateY(-110%); }
+/* nav lines also cut at their baseline, so text waiting below stays hidden */
+.projects-nav .reveal { clip-path: inset(var(--clip) -1em 0 -1em); }
 
 .projects-nav.is-open .projects-nav__window { height: calc(var(--rows-h, var(--window-h)) + var(--edge)); }
 .projects-nav.is-open .projects-nav__list { transform: none; }
@@ -199,6 +236,14 @@ button {
 }
 .projects-nav__sub > span { overflow: hidden; }
 .is-active .projects-nav__sub { grid-template-rows: 1fr; }
+/* each subtitle line slides in on its own, one after another, as the project becomes active:
+ * up from below, and out upwards once the project is passed */
+.projects-nav__sub .reveal__in {
+  transform: translateY(110%);
+  transition-delay: var(--d, calc(150ms + var(--n, 0) * 120ms));
+}
+.is-past .projects-nav__sub .reveal__in { transform: translateY(-110%); }
+.is-active .projects-nav__sub .reveal__in { transform: none; }
 .col-project { display: block; }
 
 /* ---------- Line reveal ----------
@@ -207,7 +252,7 @@ button {
  */
 .reveal {
   display: block;
-  clip-path: inset(var(--cap) -1em -0.5em -1em);
+  clip-path: inset(var(--clip) -1em -0.5em -1em);
 }
 .reveal__in {
   display: block;
@@ -252,6 +297,9 @@ button {
   scroll-margin-top: calc(var(--nav-h) + var(--img-gap));
   animation: project-in 0.6s ease both;
 }
+/* held back until the divider has opened; dropping the class replays project-in */
+.reveal-init .project,
+.intro-wait .project { visibility: hidden; animation: none; }
 .project + .project { margin-top: calc(120 * var(--u)); }
 
 @keyframes project-in {
@@ -304,14 +352,8 @@ button {
 .next-cue__label { color: var(--accent); }
 
 /* ---------- Footer ---------- */
-.footer {
-  padding: calc(160 * var(--u)) var(--edge) calc(40 * var(--u));
-  font-family: var(--mono-footer);
-  font-size: max(13px, calc(18 * var(--u)));
-  letter-spacing: 0;
-  text-transform: none;
-  text-align: center;
-}
+/* copyright line in the bottom-left corner, at the very end of the page */
+.footer { padding: calc(160 * var(--u)) var(--edge) var(--edge); }
 
 /* ---------- Small screens ---------- */
 @media (max-width: 800px) {
