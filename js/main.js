@@ -275,8 +275,9 @@
   // slide down into place (top first). The fold is timed to the wave, so the divider below
   // travels with the text.
   const LINE_MS = 550;  // .reveal__in transition after the intro (css: .intro-done .info .reveal__in)
-  const WAVE_MS = 300;
-  const LEAN_MS = 100;  // slight left-to-right lean across the wave
+  const ROW_STEP_MS = 45;  // each row of text starts this long after the one above…
+  const WAVE_MAX_MS = 700; // …squeezed so the whole wave never takes longer than this
+  const LEAN_MS = 60;      // slight left-to-right lean within a row
   let infoBlocks = null;
   let infoRun = 0;
 
@@ -295,17 +296,26 @@
     info.classList.remove('is-folding');
   }
 
+  // Stagger by visual row: lines side by side (other columns) move together, each row after
+  // the one above (opening) or below (closing). Returns the wave's length in ms.
   function waveInfo(reverse) {
-    const box = info.querySelector('.info__inner').getBoundingClientRect();
-    const height = info.querySelector('.info__inner').scrollHeight || 1;
     const vw = window.innerWidth;
-    info.querySelectorAll('.reveal__in').forEach(line => {
-      const r = line.getBoundingClientRect();
-      const y = (r.top - box.top) / height;
-      const x = r.left / vw;
-      const d = reverse ? (1 - y) * WAVE_MS + (1 - x) * LEAN_MS : y * WAVE_MS + x * LEAN_MS;
-      line.style.setProperty('--d', `${Math.round(d)}ms`);
+    const lines = [...info.querySelectorAll('.reveal__in')].map(el => {
+      const r = el.getBoundingClientRect();
+      return { el, top: r.top, x: r.left / vw };
     });
+    const rows = [];
+    [...new Set(lines.map(l => Math.round(l.top)))].sort((a, b) => a - b).forEach(t => {
+      if (!rows.length || t - rows[rows.length - 1] > 4) rows.push(t);
+    });
+    const rowOf = top => rows.findIndex((t, i) => i === rows.length - 1 || top < (t + rows[i + 1]) / 2);
+    const step = Math.min(ROW_STEP_MS, WAVE_MAX_MS / Math.max(rows.length - 1, 1));
+    lines.forEach(({ el, top, x }) => {
+      const i = rowOf(top);
+      const d = reverse ? (rows.length - 1 - i) * step + (1 - x) * LEAN_MS : i * step + x * LEAN_MS;
+      el.style.setProperty('--d', `${Math.round(d)}ms`);
+    });
+    return (rows.length - 1) * step + LEAN_MS;
   }
 
   toggle.addEventListener('click', () => {
@@ -319,11 +329,10 @@
       return;
     }
 
-    const total = WAVE_MS + LEAN_MS + LINE_MS;  // first line starts → last line lands
     splitInfo();
     info.classList.add('is-folding');
+    const total = waveInfo(open) + LINE_MS;  // first line starts → last line lands
     if (open) {
-      waveInfo(true);
       info.style.setProperty('--fold-ms', `${total}ms`);
       info.style.setProperty('--fold-delay', '0ms');
       info.classList.add('is-hiding', 'is-collapsed');
@@ -338,7 +347,6 @@
       info.offsetHeight;  // lines start above their cut line
       info.querySelectorAll('.reveal__in').forEach(l => { l.style.transition = ''; });
       info.classList.remove('is-collapsed');
-      waveInfo(false);
       requestAnimationFrame(() => info.classList.remove('is-hiding'));
       setTimeout(() => {
         if (run === infoRun) restoreInfo();
@@ -397,42 +405,57 @@
     const loader = document.querySelector('.loader');
     const loaderText = document.querySelector('.loader .reveal__in');
 
-    // Delay each line by its position on screen: top-to-bottom wave, slight left-to-right lean.
-    const lines = document.querySelectorAll('.topbar .reveal__in, .info .reveal__in, .projects-nav .reveal__in');
     const vh = window.innerHeight;
     const vw = window.innerWidth;
+
+    // From the middle of the window the divider travels to its place. If that place is higher up
+    // (e.g. a phone with the info panel closed), everything below it waits until it has landed,
+    // so the divider never slides through the project nav or the images.
+    const MOVE_MS = 900;            // matches the transform transition on .spectrum
+    let restTop = Infinity;
+    let belowAt = SPECTRUM_MS;
+    if (spectrum) {
+      const r = spectrum.getBoundingClientRect();
+      const dy = Math.round(vh / 2 - (r.top + r.height / 2));
+      spectrum.style.setProperty('--y', `${dy}px`);
+      restTop = r.top;
+      if (dy > 0) belowAt = SPECTRUM_MS + MOVE_MS * 0.8;  // resting place is above the middle
+    }
+
+    // Delay each line by its position on screen: top-to-bottom wave, slight left-to-right lean.
+    const lines = document.querySelectorAll('.topbar .reveal__in, .info .reveal__in, .projects-nav .reveal__in');
     lines.forEach(line => {
       const r = line.getBoundingClientRect();
-      const d = SPECTRUM_MS + Math.min(Math.max(r.top, 0), vh) / vh * 700 + r.left / vw * 150;
+      const start = r.top > restTop ? belowAt : SPECTRUM_MS;
+      const d = start + Math.min(Math.max(r.top, 0), vh) / vh * 700 + r.left / vw * 150;
       line.style.setProperty('--d', `${Math.round(d)}ms`);
     });
 
-    if (spectrum) {
-      const r = spectrum.getBoundingClientRect();
-      spectrum.style.setProperty('--y', `${Math.round(vh / 2 - (r.top + r.height / 2))}px`);
-    }
-
-    root.classList.add('reveal-start', 'intro-wait', 'intro-centre');
+    root.classList.add('reveal-start', 'intro-wait', 'intro-loading', 'intro-centre');
     root.classList.remove('reveal-init');
     root.offsetHeight; // commit the start position before animating
     requestAnimationFrame(() => root.classList.remove('reveal-start'));
-    setTimeout(() => root.classList.remove('intro-centre'), SPECTRUM_MS);
-    setTimeout(() => root.classList.remove('intro-wait'), SPECTRUM_MS);
+    setTimeout(() => root.classList.remove('intro-centre', 'intro-loading'), SPECTRUM_MS);
+    setTimeout(() => root.classList.remove('intro-wait'), belowAt);
 
     // The count follows the divider's actual width, so it shares its easing, and travels with
     // its right end: centred at 0%, right aligned at the page edge (its resting place) at 100%.
     if (spectrum && loader && loaderText) {
       const count = () => {
         const side = parseFloat(getComputedStyle(spectrum).clipPath.split(' ')[1]) || 0;  // inset(0px 50%) → 50
-        const p = root.classList.contains('intro-wait') ? 1 - side / 50 : 1;
+        const p = root.classList.contains('intro-loading') ? 1 - side / 50 : 1;
         const pct = Math.round(p * 100);
         loaderText.textContent = `[${pct}%]`;
         loader.style.setProperty('--x', '0px');
         const { right, width } = loader.getBoundingClientRect();  // resting position
         const startRight = (vw + width) / 2;
         loader.style.setProperty('--x', `${(startRight + (right - startRight) * p) - right}px`);
-        if (pct < 100) requestAnimationFrame(count);
+        // stay pinned above the divider while it travels, until the count has slid out
+        const r = spectrum.getBoundingClientRect();
+        loader.style.setProperty('--y', `${r.top - (vh - r.height) / 2}px`);
+        if (performance.now() < countEnd) requestAnimationFrame(count);
       };
+      const countEnd = performance.now() + SPECTRUM_MS + MOVE_MS + 100;
       requestAnimationFrame(count);
     }
 
@@ -443,10 +466,20 @@
         if (el.textContent.replace(/\s+/g, '') === text.replace(/\s+/g, '')) el.innerHTML = html;
       });
       root.classList.add('intro-done');
-    }, SPECTRUM_MS + 2000);
+    }, belowAt + 2000);
   }
 
   /* ---------- Init ---------- */
+
+  // On phones the info panel starts closed ([+]); set before first paint, so no fold plays.
+  if (window.matchMedia('(max-width: 800px)').matches) {
+    info.style.transition = 'none';
+    info.classList.add('is-collapsed');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = '[+]';
+    info.offsetHeight;
+    info.style.transition = '';
+  }
 
   // A reload always starts from the top; only a fresh visit to a #project link jumps there.
   const isReload = performance.getEntriesByType('navigation')[0]?.type === 'reload';
