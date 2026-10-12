@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script>
+    // Dark mode is remembered per visitor; applied before first paint (no flash of light).
+    try { if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
     // Hide text until the load-in animation is ready; never longer than 3s.
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.documentElement.classList.add('reveal-init');
@@ -21,6 +23,7 @@
   <header class="topbar grid">
     <a class="topbar__name" href="./">Nilza Lello</a>
     <span class="topbar__role">Graphic Designer</span>
+    <button class="topbar__theme" type="button" aria-pressed="false">[Dark]</button>
     <button class="topbar__toggle" type="button" aria-expanded="true" aria-controls="info">[-]</button>
   </header>
 

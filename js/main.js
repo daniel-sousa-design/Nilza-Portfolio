@@ -12,6 +12,7 @@
   const backToTop = document.querySelector('.back-to-top');
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root = document.documentElement;
   const sections = [];
   const navRows = [];
   let active = -1;
@@ -268,6 +269,22 @@
     if (i >= 0) goTo(i);
   });
 
+  /* ---------- Dark mode ---------- */
+
+  const themeToggle = document.querySelector('.topbar__theme');
+  function setTheme(dark) {
+    if (dark) root.dataset.theme = 'dark';
+    else delete root.dataset.theme;
+    themeToggle.textContent = dark ? '[Light]' : '[Dark]';
+    themeToggle.setAttribute('aria-pressed', String(dark));
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+  }
+  themeToggle.addEventListener('click', () => setTheme(root.dataset.theme !== 'dark'));
+  if (root.dataset.theme === 'dark') {
+    themeToggle.textContent = '[Light]';
+    themeToggle.setAttribute('aria-pressed', 'true');
+  }
+
   /* ---------- Info toggle ---------- */
 
   // Text leaves and arrives line by line, like the page-load intro: closing slides the lines
@@ -375,7 +392,6 @@
   }
 
   async function intro() {
-    const root = document.documentElement;
     if (!root.classList.contains('reveal-init')) {
       root.classList.add('intro-done');
       return;
@@ -396,11 +412,16 @@
     });
 
     // The divider opens first in the middle of the window (a [0%]–[100%] count beside it),
-    // holds there for a beat at [100%], then moves down into place as the text wave and the
-    // images start.
-    const OPEN_MS = 1200;           // matches the clip-path transition on .spectrum
-    const HOLD_MS = 500;
-    const SPECTRUM_MS = OPEN_MS + HOLD_MS;
+    // holds there for a beat at [100%], the count slides out, and only then the divider moves
+    // into place as the text wave and the images start.
+    // Played with the Web Animations API on one clock, so the steps can't overlap.
+    const OPEN_MS = 1200;
+    const OPEN_EASE = 'cubic-bezier(0.87, 0, 0.13, 1)';  // very slow start
+    const HOLD_MS = 200;
+    const COUNT_OUT_MS = 500;
+    const PAUSE_MS = 250;           // still beat between the count leaving and the divider moving
+    const EASE = getComputedStyle(root).getPropertyValue('--ease').trim() || 'ease-in-out';
+    const SPECTRUM_MS = OPEN_MS + HOLD_MS + COUNT_OUT_MS + PAUSE_MS;  // divider starts moving
     const spectrum = document.querySelector('.spectrum');
     const loader = document.querySelector('.loader');
     const loaderText = document.querySelector('.loader .reveal__in');
@@ -411,13 +432,13 @@
     // From the middle of the window the divider travels to its place. If that place is higher up
     // (e.g. a phone with the info panel closed), everything below it waits until it has landed,
     // so the divider never slides through the project nav or the images.
-    const MOVE_MS = 900;            // matches the transform transition on .spectrum
+    const MOVE_MS = 900;
     let restTop = Infinity;
     let belowAt = SPECTRUM_MS;
+    let dy = 0;
     if (spectrum) {
       const r = spectrum.getBoundingClientRect();
-      const dy = Math.round(vh / 2 - (r.top + r.height / 2));
-      spectrum.style.setProperty('--y', `${dy}px`);
+      dy = Math.round(vh / 2 - (r.top + r.height / 2));
       restTop = r.top;
       if (dy > 0) belowAt = SPECTRUM_MS + MOVE_MS * 0.8;  // resting place is above the middle
     }
@@ -431,19 +452,36 @@
       line.style.setProperty('--d', `${Math.round(d)}ms`);
     });
 
-    root.classList.add('reveal-start', 'intro-wait', 'intro-loading', 'intro-centre');
+    // 1. open in the middle  2. hold  3. count slides out  4. pause  5. glide into place
+    let open = null;
+    if (spectrum) {
+      open = spectrum.animate(
+        [{ clipPath: 'inset(0 50%)' }, { clipPath: 'inset(0 0)' }],
+        { duration: OPEN_MS, easing: OPEN_EASE });
+      spectrum.animate(
+        [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
+        { duration: MOVE_MS, delay: SPECTRUM_MS, easing: EASE, fill: 'backwards' });
+    }
+    if (loader && loaderText) {
+      loader.style.visibility = 'visible';
+      loaderText.animate(
+        [{ transform: 'translateY(0)' }, { transform: 'translateY(110%)' }],
+        { duration: COUNT_OUT_MS, delay: OPEN_MS + HOLD_MS, easing: EASE, fill: 'both' })
+        .finished.then(() => { loader.style.visibility = ''; });
+    }
+
+    root.classList.add('reveal-start', 'intro-wait');
     root.classList.remove('reveal-init');
     root.offsetHeight; // commit the start position before animating
     requestAnimationFrame(() => root.classList.remove('reveal-start'));
-    setTimeout(() => root.classList.remove('intro-centre', 'intro-loading'), SPECTRUM_MS);
     setTimeout(() => root.classList.remove('intro-wait'), belowAt);
 
-    // The count follows the divider's actual width, so it shares its easing, and travels with
-    // its right end: centred at 0%, right aligned at the page edge (its resting place) at 100%.
+    // The count reads the opening's eased progress, and travels with the divider's right end:
+    // centred at 0%, right aligned at the page edge (its resting place) at 100%.
     if (spectrum && loader && loaderText) {
       const count = () => {
-        const side = parseFloat(getComputedStyle(spectrum).clipPath.split(' ')[1]) || 0;  // inset(0px 50%) → 50
-        const p = root.classList.contains('intro-loading') ? 1 - side / 50 : 1;
+        const progress = open?.effect.getComputedTiming().progress;
+        const p = progress == null ? 1 : progress;  // null once the opening has finished
         const pct = Math.round(p * 100);
         loaderText.textContent = `[${pct}%]`;
         loader.style.setProperty('--x', '0px');

@@ -17,6 +17,7 @@
   --accent: rgba(191, 0, 255, 0.5);
   --accent-solid: #df80ff;           /* the accent as it looks on white, for use over images */
   --tile: #f2f2f2;
+  --placeholder-ink: rgba(0, 0, 0, 0.35);
   --faded: 0.2;
   /* the spectrum wash shared by the divider and the footer; last stop repeats the first,
    * so sliding it one tile width (spectrum-flow) loops seamlessly */
@@ -33,6 +34,18 @@
   --nav-h: 0px;                      /* set from JS */
 }
 
+/* Dark mode ([Dark] / [Light] in the top bar): ink and paper swap; the accent is the same pink
+ * as on white (solid, since the translucent version would turn purple on black); the spectrum
+ * gradients stay as they are. */
+:root[data-theme="dark"] {
+  --ink: #fff;
+  --paper: #000;
+  --accent: var(--accent-solid);
+  --tile: #161616;
+  --placeholder-ink: rgba(255, 255, 255, 0.35);
+  color-scheme: dark;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
@@ -45,6 +58,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
+  transition: background-color 0.4s ease, color 0.4s ease;
   font-family: var(--mono);
   font-size: var(--font-size);
   line-height: var(--line);
@@ -77,8 +91,11 @@ button {
 .topbar { padding-top: var(--edge); }
 .topbar__name { grid-column: 1 / 4; }
 .topbar__role { grid-column: 4 / 8; }
-.topbar__toggle { grid-column: 8; justify-self: end; }
-.topbar__toggle:hover { color: var(--accent); }
+.topbar__toggle { grid-column: 8; grid-row: 1; justify-self: end; }
+/* sits just left of [-]/[+] in the same cell (that button is 3 characters wide) */
+.topbar__theme { grid-column: 8; grid-row: 1; justify-self: end; margin-right: calc(3ch + 1.5ch); }
+.topbar__toggle:hover,
+.topbar__theme:hover { color: var(--accent); }
 
 /* After the intro, the info panel and the project nav (opening, closing, switching) move
  * faster, on the quicker-starting UI curve; the intro itself keeps its slower pace. */
@@ -140,20 +157,17 @@ button {
   opacity: 0.85;
   animation: spectrum-flow 24s linear infinite;
   pointer-events: none;
-  clip-path: inset(0 0);
-  transition: clip-path 1.2s cubic-bezier(0.87, 0, 0.13, 1), transform 0.9s var(--ease);  /* opening: very slow start */
 }
-/* page-load intro, before anything else: the wash opens out from the centre to both sides
- * in the middle of the window, then glides down into its place (--y is set by main.js) */
-.intro-centre .spectrum { transform: translateY(var(--y, 0)); }
+/* Page-load intro (scripted in main.js as one timeline, so every browser plays it in order):
+ * the wash opens out from the centre in the middle of the window, holds, the count slides
+ * out, then the wash glides into its place. Hidden until the intro starts. */
+.reveal-init .spectrum { clip-path: inset(0 50%); }
 /* above everything while it opens and travels (it crosses the white project nav on phones);
  * afterwards back under the sticky nav so the page scrolls beneath it */
 html:not(.intro-done) .spectrum { position: relative; z-index: 25; }
-.reveal-init .spectrum,
-.reveal-start .spectrum { clip-path: inset(0 50%); transition: none; }
 /* loading count shown while the divider opens, just above it: starts centred and rides the
- * divider's right end out to the page edge (--x is set by main.js). When the divider moves
- * down, the count slides down out of its line (top to bottom). */
+ * divider's right end out to the page edge (--x, --y set by main.js), then slides down out
+ * of its line before the divider moves. */
 .loader {
   position: fixed;
   right: var(--edge);
@@ -161,14 +175,10 @@ html:not(.intro-done) .spectrum { position: relative; z-index: 25; }
   transform: translate(var(--x, 0px), calc(-100% + var(--y, 0px)));  /* --y: follows the divider */
   color: var(--accent);
   z-index: 30;
-  visibility: hidden;
+  visibility: hidden;                 /* shown by main.js for the intro only */
   pointer-events: none;
-  transition: visibility 0s 0.9s;     /* stays visible while it slides out */
 }
 .loader .reveal { clip-path: inset(var(--clip) -1em 0 -1em); }  /* cut at its baseline too */
-.loader .reveal__in { transform: translateY(110%); transition: transform 0.9s var(--ease); }
-.intro-loading .loader { visibility: visible; transition: none; }
-.intro-loading .loader .reveal__in { transform: none; transition: none; }
 @keyframes spectrum-flow {
   to { background-position: 100vw 0; }
 }
@@ -219,7 +229,7 @@ html:not(.intro-done) .spectrum { position: relative; z-index: 25; }
   position: absolute;
   left: 0; right: 0; bottom: 0;
   top: calc(var(--active-h, var(--lh)) + 0.5 * var(--lh));   /* top half of the next project stays clear */
-  background: linear-gradient(rgba(255, 255, 255, 0.15), var(--paper) var(--lh));
+  background: linear-gradient(color-mix(in srgb, var(--paper) 15%, transparent), var(--paper) var(--lh));
   pointer-events: none;
   transition: top 0.8s var(--ease), opacity 0.4s ease;
 }
@@ -355,7 +365,7 @@ html:not(.intro-done) .spectrum { position: relative; z-index: 25; }
 .tile--placeholder {
   display: grid;
   place-items: center;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--placeholder-ink);
 }
 
 /* ---------- Keep-scrolling cue ---------- */
@@ -411,6 +421,7 @@ html:not(.intro-done) .spectrum { position: relative; z-index: 25; }
   .topbar__name { grid-column: 1 / 4; grid-row: 1; }
   .topbar__role { grid-column: 1 / 4; grid-row: 2; }
   .topbar__toggle { grid-column: 4; grid-row: 1; }
+  .topbar__theme { grid-column: 3 / 5; grid-row: 1; }
 
   .info__row { padding-top: 40px; }
   .info__about,
