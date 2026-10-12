@@ -1,0 +1,338 @@
+/*
+ * Sizes are designed on a 1512px-wide Figma frame. `--u` is one Figma pixel scaled to
+ * the current viewport, so the whole layout keeps its proportions from laptop to Full HD
+ * (at 1920px wide everything is ~1.27× the Figma values).
+ */
+:root {
+  --u: calc(100vw / 1512);
+  --edge: calc(8 * var(--u));        /* page side margin */
+  --gap: calc(8 * var(--u));         /* text grid gutter */
+  --img-gap: calc(11 * var(--u));    /* gap between images */
+  --radius: calc(12 * var(--u));
+  --font-size: max(12px, calc(14 * var(--u)));
+  --line: 1.3;
+
+  --ink: #000;
+  --paper: #fff;
+  --accent: rgba(191, 0, 255, 0.5);
+  --tile: #f2f2f2;
+  --faded: 0.2;
+
+  --mono: 'Roboto Mono', ui-monospace, monospace;
+  --mono-footer: 'IBM Plex Mono', ui-monospace, monospace;
+  --nav-h: 0px;                      /* set from JS */
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: var(--font-size);
+  line-height: var(--line);
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  -webkit-font-smoothing: antialiased;
+}
+
+h2, p, ul, ol { margin: 0; padding: 0; font: inherit; }
+ul, ol { list-style: none; }
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--accent); }
+button {
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: left;
+}
+:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+
+/* 8-column grid matching the Figma column starts (8, 196, 384, 572, 760, 948, 1136, 1324) */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  column-gap: var(--gap);
+  padding-inline: var(--edge);
+}
+
+.label { color: var(--accent); margin-bottom: calc(7 * var(--u)); }
+
+/* ---------- Top bar ---------- */
+.topbar { padding-top: var(--edge); }
+.topbar__name { grid-column: 1 / 4; }
+.topbar__role { grid-column: 4 / 8; }
+.topbar__toggle { grid-column: 8; justify-self: end; }
+.topbar__toggle:hover { color: var(--accent); }
+
+/* ---------- Info ---------- */
+.info {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.5s ease;
+}
+.info.is-collapsed { grid-template-rows: 0fr; }
+.info__inner { overflow: hidden; min-height: 0; }
+
+.info__row { padding-top: calc(60 * var(--u)); }
+.info__about { grid-column: 1 / 4; }
+.info__about p + p { margin-top: calc(var(--line) * 1em); }
+.info__contact,
+.info__studies { grid-column: 7 / 9; }
+
+/* blocks with two side-by-side lists under one label */
+.info__community,
+.info__worked,
+.info__services {
+  display: grid;
+  grid-template-columns: subgrid;
+  align-content: start;
+}
+.info__community, .info__worked { grid-column: 5 / 7; }
+.info__services { grid-column: 1 / 3; }
+.info__community .label,
+.info__worked .label,
+.info__services .label { grid-column: 1 / -1; }
+
+/* ---------- Spectrum separator ----------
+ * A colour wash with a crisp top edge that dissolves downward. The gradient's last stop
+ * repeats its first, so sliding it one tile width loops seamlessly.
+ */
+.spectrum {
+  height: calc(44 * var(--u));
+  margin-top: calc(174 * var(--u));
+  margin-bottom: calc(66 * var(--u));
+  background: linear-gradient(90deg,
+    #ff88dc 0%, #91a6fe 12.5%, #cfffb0 25%, #fff688 37.5%,
+    #ebe0da 50%, #ffd4c1 62.5%, #d4e09a 75%, #ffbcff 87.5%, #ff88dc 100%)
+    0 0 / 100vw 100% repeat-x;
+  -webkit-mask-image: linear-gradient(#000 0%, rgba(0, 0, 0, 0.55) 22%, rgba(0, 0, 0, 0.15) 60%, transparent 100%);
+          mask-image: linear-gradient(#000 0%, rgba(0, 0, 0, 0.55) 22%, rgba(0, 0, 0, 0.15) 60%, transparent 100%);
+  opacity: 0.85;
+  animation: spectrum-flow 24s linear infinite;
+  pointer-events: none;
+}
+@keyframes spectrum-flow {
+  to { background-position: 100vw 0; }
+}
+
+/* ---------- Project nav (sticky) ----------
+ * Closed: a window of ~3 lines showing the active project (plus its subtitle) and the
+ * next one, half hidden under a white fade. Switching project slides the list up,
+ * clipped at the cap line of the text.
+ * Open ([+]): the window drops down to the full list and the other projects cascade in;
+ * closing (or leaving the nav) plays it in reverse.
+ */
+.projects-nav {
+  --lh: calc(var(--line) * 1em);
+  --cap: 0.3em;                       /* line top → top of capitals */
+  --window-h: calc(3 * var(--lh));
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-block: var(--edge) calc(14 * var(--u));
+  background: var(--paper);
+}
+
+.projects-nav__head { margin-bottom: calc(13 * var(--u)); }
+.col-project { grid-column: 1 / 3; }
+.col-year { grid-column: 4 / 5; }
+.col-category { grid-column: 6 / 8; }
+.projects-nav__toggle { grid-column: 8; justify-self: end; }
+.projects-nav__toggle:hover { color: var(--accent); }
+
+.projects-nav__frame { position: relative; height: var(--window-h); }
+
+.projects-nav__window {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--window-h);
+  overflow: hidden;
+  clip-path: inset(var(--cap) 0 0 0);
+  background: var(--paper);
+  transition: height 0.7s var(--ease);
+}
+
+.projects-nav__list {
+  transform: translateY(calc(-1 * var(--offset, 0px)));
+  transition: transform 0.8s var(--ease);
+}
+
+.projects-nav__fade {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  top: var(--active-h, var(--lh));
+  background: linear-gradient(rgba(255, 255, 255, 0.15), var(--paper) var(--lh));
+  pointer-events: none;
+  transition: top 0.8s var(--ease), opacity 0.4s ease;
+}
+
+.projects-nav__row {
+  width: 100%;
+  transition: opacity 0.45s ease, transform 0.45s var(--ease);
+  transition-delay: calc(var(--ri, 0) * 25ms);   /* closing: bottom row leaves first */
+}
+/* closed: everything past the next project is out of sight */
+.projects-nav__row:not(.is-active):not(.is-next) {
+  opacity: 0;
+  transform: translateY(-0.6em);
+}
+
+.projects-nav.is-open .projects-nav__window { height: calc(var(--rows-h, var(--window-h)) + var(--edge)); }
+.projects-nav.is-open .projects-nav__list { transform: none; }
+.projects-nav.is-open .projects-nav__fade { opacity: 0; }
+.projects-nav.is-open .projects-nav__row:not(.is-active) {
+  opacity: var(--faded);
+  transform: none;
+  transition-delay: calc(var(--i, 0) * 40ms);    /* opening: rows cascade top to bottom */
+}
+.projects-nav.is-open .projects-nav__row:not(.is-active):hover {
+  opacity: 0.6;
+  transition-delay: 0s;
+}
+
+/* subtitle folds away when its project isn't selected */
+.projects-nav__sub {
+  display: grid;
+  grid-template-rows: 0fr;
+  color: var(--accent);
+  transition: grid-template-rows 0.8s var(--ease);
+}
+.projects-nav__sub > span { overflow: hidden; }
+.is-active .projects-nav__sub { grid-template-rows: 1fr; }
+.col-project { display: block; }
+
+/* ---------- Back to top ---------- */
+.back-to-top {
+  position: fixed;
+  right: var(--edge);
+  bottom: var(--edge);
+  z-index: 20;
+  color: #fff;
+  mix-blend-mode: difference;          /* stays legible over light and dark images */
+  opacity: 0;
+  transform: translateY(0.8em);
+  pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s var(--ease, ease);
+}
+.back-to-top.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* ---------- Projects ---------- */
+.projects { padding-inline: var(--edge); }
+
+.project {
+  display: grid;
+  gap: var(--img-gap);
+  scroll-margin-top: calc(var(--nav-h) + var(--img-gap));
+  animation: project-in 0.6s ease both;
+}
+.project + .project { margin-top: calc(120 * var(--u)); }
+
+@keyframes project-in {
+  from { opacity: 0; transform: translateY(calc(40 * var(--u))); }
+}
+
+.row { display: grid; gap: var(--img-gap); }
+.row--full { grid-template-columns: 1fr; }
+.row--cols { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.row--flush { gap: 0; }
+.row--inset { padding-inline: calc(11 * var(--u)); }
+.row--feature { grid-template-columns: 1fr 1fr; }
+.row--feature > :first-child { grid-row: span 2; aspect-ratio: auto; }
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  aspect-ratio: var(--ratio, auto);
+  background: var(--bg, var(--tile));
+}
+.tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  max-width: none;
+}
+.tile--contain img { object-fit: contain; }
+.tile--crop img { inset: auto; object-fit: fill; }
+
+.tile--placeholder {
+  display: grid;
+  place-items: center;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Keep-scrolling cue ---------- */
+.next-cue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4 * var(--u));
+  height: 60vh;
+  text-align: center;
+}
+.next-cue[hidden] { display: none; }
+.next-cue__label { color: var(--accent); }
+
+/* ---------- Footer ---------- */
+.footer {
+  padding: calc(160 * var(--u)) var(--edge) calc(40 * var(--u));
+  font-family: var(--mono-footer);
+  font-size: max(13px, calc(18 * var(--u)));
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: center;
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 800px) {
+  :root {
+    --u: 1px;
+    --edge: 12px;
+    --gap: 12px;
+    --img-gap: 8px;
+    --radius: 8px;
+    --font-size: 12px;
+  }
+
+  .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 40px; }
+
+  .topbar__name { grid-column: 1 / 3; }
+  .topbar__role { grid-column: 3 / 4; white-space: nowrap; }
+  .topbar__toggle { grid-column: 4; }
+
+  .info__row { padding-top: 40px; }
+  .info__about,
+  .info__contact,
+  .info__studies { grid-column: 1 / -1; }
+  .info__community,
+  .info__worked,
+  .info__services { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; column-gap: var(--gap); }
+
+  .spectrum { margin-top: 80px; margin-bottom: 40px; height: 36px; }
+
+  .col-project { grid-column: 1 / 3; }
+  .col-category { display: none; }
+  .projects-nav__toggle { grid-column: 4; }
+  .col-year { grid-column: 3 / 4; }
+
+  .row--feature { grid-template-columns: 1fr; }
+  .row--feature > :first-child { grid-row: auto; aspect-ratio: 743 / 990; }
+  .row--cols { grid-template-columns: repeat(min(var(--cols), 2), minmax(0, 1fr)); }
+  .row--n2 { grid-template-columns: 1fr; }
+  .row__empty { display: none; }
+  .row--inset { padding-inline: 0; }
+}
